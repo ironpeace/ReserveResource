@@ -1,0 +1,30 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja" lang="ja">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+        <meta http-equiv="Content-Language" content="ja" />
+        <meta http-equiv="Content-Script-Type" content="text/javascript" />
+        <meta http-equiv="Content-Style-Type" content="text/css" />
+        <meta http-equiv="imagetoolbar" content="no" />
+        
+        <title>HTML5 ReserveResource</title>
+        
+        <!-- JS -->
+        <script type="text/javascript" src="jquery-1.5.1.min.js"></script>
+        <script type="text/javascript" src="timetable.js"></script>
+        <script type="text/javascript">
+            $(function(){
+                $('#main').timetable();
+            });
+        </script>
+        <!-- JS -->
+        
+        <!-- StyleSheet -->
+        <link rel="STYLESHEET" href="main.css" type="text/css">
+        <!-- StyleSheet -->
+
+    </head>
+    <body width="100%" height="100%">
+      <div id="main" with="100%" height="100%" />
+      </body>
+</html>
