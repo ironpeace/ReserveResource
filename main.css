@@ -1,15 +1,30 @@
 body
-{ 
-  padding : 0px;
-  margin : 0px;
-  }
+{
+	padding : 0px;
+	margin : 0px;
+}
+
+select
+{
+	font-size : 20px;
+}
 
 #main
 {
-  float : right;
-  }
+	float : right;
+}
 
-canvas.timetable
-{ 
-  
-  }
+#sideTd
+{
+	/* 
+	background-color : #87ceeb;
+	*/
+	vertical-align : top;
+}
+
+#timetableTd
+{
+	/*
+	background-color : #98fb98;
+	*/
+}
