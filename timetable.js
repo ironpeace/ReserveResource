@@ -132,12 +132,15 @@
 
 	var highlightCellIdx;
 	var highlightCellPos;
+	var highlightCellSize;
+	var highlightCellCnt;
 	
-	var mousedownedCellIdx;
-	var dragging = false;
+	var mousedownedCellIdx = null;
 	
 	var daysCnt;
 	var rscCnt;
+
+	var timeSelectedEventHandler = function(event){}
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~
 	// Class ここから
@@ -146,6 +149,38 @@
 	var Point = function(x, y){
 		this.x = x;
 		this.y = y;
+	}
+	
+	var Reserve = function( reserveId, 
+							reserverId, 
+							reserverName, 
+							dept,
+							date, 
+							startTimeHour,
+							startTimeMin,
+							endTimeHour,
+							endTimeMin,
+							resourceId,
+							resourceName,
+							purpose 
+							) {
+		this.reserveId = reserveId; 
+		this.reserverId = reserverId;
+		this.reserverName = reserverName;
+		this.dept = dept;
+		this.date = date;
+		this.startTimeHour = startTimeHour;
+		this.startTimeMin = startTimeMin;
+		this.endTimeHour = endTimeHour;
+		this.endTimeMin = endTimeMin;
+		this.resourceId = resourceId;
+		this.resourceName = resourceName;
+		this.purpose = purpose;
+	}
+	
+	var Event = function(eventName, reserve){
+		this.eventName = eventName;
+		this.reserve = reserve;
 	}
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~
@@ -175,14 +210,20 @@
 		mouseY = event.pageY- rect.top;
 		mousedownedCellIdx = getCellIndex(mouseX, mouseY);
 		console.log("mousedownedCellIdx : " + mousedownedCellIdx.x + "," + mousedownedCellIdx.y);
-		dragging = true;
 		invalidDisplayList();
 		//console.log("mouseDown");
 	}
 
 	function mouseUpListner(event){
-		if(dragging){
-			dragging = false;
+		if(mousedownedCellIdx){
+
+			setHighlightCellSize();
+			var reserve = getReserve();
+			
+			//dispatch timeSelected Event
+			var timeSelectedEvent = new Event("timeSelected", reserve);
+			timeSelectedEventHandler(timeSelectedEvent);
+			mousedownedCellIdx = null;
 		}
 	}
 
@@ -317,7 +358,17 @@
 			context.closePath();
 		}
 	}
-	
+
+	function drawHighLight() {
+		setHighlightCellSize();
+		
+		//はみ出しチェック
+		if(isOutTimeTable()) return;
+		
+		context.fillStyle = 'rgba(255, 00, 00, 0.7)';
+		context.fillRect(highlightCellPos.x, highlightCellPos.y, highlightCellSize.x, highlightCellSize.y);
+	}
+
 	function getCellIndex(mouseX, mouseY){
 		var hix = Math.floor((mouseX - firstColWidth) / colWidth);
 		var hiy = Math.floor((mouseY - daysNameRowHeight - resourceNameRowHeight) / rowHeight);
@@ -335,57 +386,64 @@
 		highlightCellPos = new Point(hpx, hpy);
 	}
 
-	function drawHighLight(){
+	function setHighlightCellSize(){
+		setHighLightCellIndex(mouseX, mouseY);
 
-		var hlW;
-		var hlH;
-
-		if(dragging) {
+		if(mousedownedCellIdx) {
 			var isOutofTimetable = false;
 			var nowCellIndex = getCellIndex(mouseX, mouseY);
-			
-			//はみ出しチェック
-			if(mouseX < firstColWidth || mouseY < daysNameRowHeight + resourceNameRowHeight) isOutofTimetable = true;
-			if(nowCellIndex.x > colCnt - 1) isOutofTimetable = true;
-			if(nowCellIndex.y > rowCnt - 3) isOutofTimetable = true;
-			
 			var hlix = mousedownedCellIdx.x;
 			var hliy = Math.min(nowCellIndex.y, mousedownedCellIdx.y);
-			var cellCnt = Math.abs(nowCellIndex.y - mousedownedCellIdx.y);
+			highlightCellCnt = Math.abs(nowCellIndex.y - mousedownedCellIdx.y);
 			
 			setHighLightCellPosition(hlix, hliy);
-			hlW = colWidth;
-			hlH = rowHeight * (cellCnt + 1);
-			
+			highlightCellSize = new Point(colWidth, rowHeight * (highlightCellCnt + 1));
 		} else {
-			if(mouseX < firstColWidth || mouseY < daysNameRowHeight + resourceNameRowHeight) return;
-			
-			setHighLightCellIndex(mouseX, mouseY);
 			setHighLightCellPosition(highlightCellIdx.x, highlightCellIdx.y);
-	
-			//はみ出しチェック
-			if(highlightCellIdx.x > colCnt - 1) return;
-			if(highlightCellIdx.y > rowCnt - 3) return;
-	
-			hlW = colWidth;
-			hlH = rowHeight;
-	
-			if(highlightCellIdx.x == colCnt - 1){
-				//console.log("currentCell is on lastCol");
-				hlW = lastColWidth;
-			}
-	
-			if(highlightCellIdx.y == rowCnt - 3){
-				//console.log("currentCell is on lastRow");
-				hlH = lastRowHeight;
-			}
+			highlightCellSize = new Point(colWidth, rowHeight);
 		}
-
-		context.fillStyle = 'rgba(255, 00, 00, 0.7)';
-		context.fillRect(highlightCellPos.x, highlightCellPos.y, hlW, hlH);
-
 	}
 	
+	function isOutTimeTable(){
+		//console.log("highlightCellIdx : x " + highlightCellIdx.x + " , y " + highlightCellIdx.y);
+		if(highlightCellIdx.x < 0) return true;
+		if(highlightCellIdx.y < 0) return true;
+		if(highlightCellIdx.x > colCnt - 1) return true;
+		if(highlightCellIdx.y > rowCnt - 3) return true;
+		return false;
+	}
+	
+	function getReserve(){
+		var dateIdx = Math.floor(highlightCellIdx.x / opt.resources.length);
+		var date = DateUtil.plusDay(opt.startDate, dateIdx);
+		
+		var rscIdx = highlightCellIdx.x % opt.resources.length;
+		var rscId = opt.resources[rscIdx].rscID;
+		var rscName = opt.resources[rscIdx].rscName;
+		
+		var starttimeHour = opt.startTime + Math.floor(highlightCellIdx.y / 4);
+		var starttimeMin = highlightCellIdx.y % 4 * 15;
+		
+		var endY = highlightCellIdx.y + highlightCellCnt + 1;
+		var endtimeHour = opt.startTime + Math.floor(endY / 4);
+		var endtimeMin = endY % 4 * 15;
+
+		var ret = new Reserve( "reserveId", 
+							"reserverId", 
+							"reserverName", 
+							"dept",
+							date, 
+							starttimeHour,
+							starttimeMin,
+							endtimeHour,
+							endtimeMin,
+							rscId,
+							rscName,
+							"purpose" );
+		return ret;
+	}
+
+
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	// PUBLIC METHOD
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -407,5 +465,15 @@
 		invalidDisplayList();
 	};
 	
+	jQuery.fn.addEventListner = function(eventname, eventhandler) {
+		switch(eventname){
+			case "timeSelected":
+				timeSelectedEventHandler = eventhandler;
+				break;
+			default:
+				throw "invalid eventname : " + eventname;
+				break;
+		}
+	}
 
 })(jQuery);

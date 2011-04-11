@@ -31,6 +31,11 @@
 											resources:rscList
 				});
 
+				tt.addEventListner("timeSelected", function(event){
+					console.log("Event[ " + event.eventName + " ] dispatched");
+					console.log(event.reserve.resourceName + "is selected");
+				});
+
 				$('#fromDp').datepicker({
 					onSelect: function(dateText, inst) {
 						tt.changeDateRange(getDate(dateText), null);
