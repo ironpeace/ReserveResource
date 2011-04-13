@@ -28,3 +28,54 @@ select
 	background-color : #98fb98;
 	*/
 }
+
+#reservePopup
+{
+	font:16px Georgia, "Times New Roman", Times, serif;
+}
+
+form
+{
+	text-align : left;
+	font:14px Georgia, "Times New Roman", Times, serif;
+	background:#eee;
+	margin:20px 20px 40px 20px;
+	width:600px;
+}
+
+form ol {
+	list-style:none;
+	margin:0;
+	padding:0;
+}
+
+form li {
+	padding:6px;
+	background:#e1e1e1;
+	margin-bottom:1px;
+}
+
+form label {
+	float:left;
+	width:120px;
+	text-align:right;
+	margin-right:7px;
+	color:#0066CC;
+	line-height:23px;	 /* This will make the labels vertically centered with the inputs */
+}
+
+form input,
+form textarea {
+	width:180px;
+	padding:4px;
+	font:13px Georgia, "Times New Roman", Times, serif;
+	border:1px solid #999999;
+}
+
+form input:focus,
+form textarea:focus {
+	border:1px solid #666;
+	background:#e3f1f1;
+}
+
+

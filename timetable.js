@@ -16,8 +16,11 @@
 
 	DateUtil.compareDates = function(date1, compWay, date2){
 		
-		var d1 = date1.getTime();
-		var d2 = date2.getTime();
+		var dd1 = new Date(date1.getFullYear(), date1.getMonth(), date1.getDate());
+		var dd2 = new Date(date2.getFullYear(), date2.getMonth(), date2.getDate());
+		
+		var d1 = dd1.getTime();
+		var d2 = dd2.getTime();
 		
 		switch(compWay){
 			case 'greaterthan':
@@ -42,6 +45,7 @@
 				}
 				break;
 			case 'lessThanOrEqual':
+				//console.log("d1 : " + d1 + ", d2 : " + d2);
 				if(d1 <= d2){
 					return true;
 				}else{
@@ -74,6 +78,12 @@
 		ret.setTime(date.getTime() + plus * 24 * 60 * 60 * 1000);
 		return ret;
 	}
+	
+	DateUtil.getDatefromString = function(dateString){
+		var ds = dateString.split("/");
+		var ret = new Date(ds[0], parseFloat(ds[1])-1, ds[2]);
+		return ret;
+	}
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	// DateUtil ここまで
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -90,7 +100,49 @@
 			endDate : new Date(),
 			startTime : 9,
 			endTime : 18,
-			resources : [{"rscID":"000","rscName":"dummy"}]
+			resources : [{"rscID":"000","rscName":"dummy"}],
+			reserves : [
+							{
+								"reserveId":"1",
+								"reserverId":"PIT00123",
+								"reserverName":"山田太郎",
+								"dept":"SI開発1部",
+								"date":"2011/4/12",
+								"startTimeHour":"10",
+								"startTimeMin":"30",
+								"endTimeHour":"11",
+								"endTimeMin":"0",
+								"resourceId":"001",
+								"resourceName":"トルネード１",
+								"purpose":"部内定例" 
+							},{
+								"reserveId":"2",
+								"reserverId":"PIT00456",
+								"reserverName":"佐藤二朗",
+								"dept":"SI開発2部",
+								"date":"2011/4/13",
+								"startTimeHour":"12",
+								"startTimeMin":"15",
+								"endTimeHour":"15",
+								"endTimeMin":"45",
+								"resourceId":"002",
+								"resourceName":"トルネード２",
+								"purpose":"チーム内定例" 
+							},{
+								"reserveId":"3",
+								"reserverId":"PIT00789",
+								"reserverName":"鈴木三郎",
+								"dept":"SI開発3部",
+								"date":"2011/4/14",
+								"startTimeHour":"17",
+								"startTimeMin":"0",
+								"endTimeHour":"23",
+								"endTimeMin":"0",
+								"resourceId":"003",
+								"resourceName":"トルネード３",
+								"purpose":"障害対応" 
+							}
+						]
 		},options);
 
 		if(!DateUtil.compareDates(options.startDate, "lessThanOrEqual",options.endDate)){
@@ -101,6 +153,7 @@
 			console.log("selectedDateRangeStart : " + options.startDate.toLocaleString());
 			console.log("selectedDateRangeEnd : " + options.endDate.toLocaleString());
 			console.log("resources length : " + options.resources.length);
+			console.log("reserves length : " + options.reserves.length);
 			opt = options;
 
 			$(this).append($('<canvas>').addClass('timetable'));
@@ -183,6 +236,13 @@
 		this.reserve = reserve;
 	}
 
+	var ReserveBox = function(x, y, cellCount, reserve){
+		this.x = x;
+		this.y = y;
+		this.cellCount = cellCount;
+		this.reserve = reserve;
+	}
+
 	//~~~~~~~~~~~~~~~~~~~~~~~~
 	// Class ここまで
 	//~~~~~~~~~~~~~~~~~~~~~~~~
@@ -209,7 +269,7 @@
 		mouseX = event.pageX - rect.left;
 		mouseY = event.pageY- rect.top;
 		mousedownedCellIdx = getCellIndex(mouseX, mouseY);
-		console.log("mousedownedCellIdx : " + mousedownedCellIdx.x + "," + mousedownedCellIdx.y);
+		//console.log("mousedownedCellIdx : " + mousedownedCellIdx.x + "," + mousedownedCellIdx.y);
 		invalidDisplayList();
 		//console.log("mouseDown");
 	}
@@ -264,6 +324,7 @@
 		
 		drawLines(x, y, width - x, height - y);
 		drawHighLight();
+		drawReserveBoxes();
 	}
 
 	function drawLines(x, y, width, height) {
@@ -380,10 +441,16 @@
 		highlightCellIdx = getCellIndex(mouseX, mouseY);
 	}
 
-	function setHighLightCellPosition(indexX, indexY){
+	function getCellPosition(indexX, indexY){
+		//console.log("indexX : " + indexX + ", indexY : " + indexY);
 		var hpx = firstColWidth + colWidth * indexX;
 		var hpy = daysNameRowHeight + resourceNameRowHeight + rowHeight * indexY;
-		highlightCellPos = new Point(hpx, hpy);
+		var ret = new Point(hpx, hpy);
+		return ret;
+	}
+
+	function setHighLightCellPosition(indexX, indexY){
+		highlightCellPos = getCellPosition(indexX, indexY);
 	}
 
 	function setHighlightCellSize(){
@@ -421,10 +488,12 @@
 		var rscId = opt.resources[rscIdx].rscID;
 		var rscName = opt.resources[rscIdx].rscName;
 		
-		var starttimeHour = opt.startTime + Math.floor(highlightCellIdx.y / 4);
-		var starttimeMin = highlightCellIdx.y % 4 * 15;
+		var startCellIdx_Y = Math.min(mousedownedCellIdx.y, highlightCellIdx.y);
 		
-		var endY = highlightCellIdx.y + highlightCellCnt + 1;
+		var starttimeHour = opt.startTime + Math.floor(startCellIdx_Y / 4);
+		var starttimeMin = startCellIdx_Y % 4 * 15;
+		
+		var endY = startCellIdx_Y + highlightCellCnt + 1;
 		var endtimeHour = opt.startTime + Math.floor(endY / 4);
 		var endtimeMin = endY % 4 * 15;
 
@@ -443,6 +512,80 @@
 		return ret;
 	}
 
+	function drawReserveBoxes(){
+		var rl = opt.reserves.length;
+		for(var i=0; i<rl; i++){
+			var rb = getReserveBox(opt.reserves[i]);
+			if(rb) drawReserveBox(rb);
+		}
+	}
+	
+	function drawReserveBox(reserveBox){
+		//console.log("reserveBox :: x : " + reserveBox.x + ", y : " + reserveBox.y);
+		var bp = getCellPosition(reserveBox.x, reserveBox.y);
+		console.log(reserveBox.cellCount + "," + rowHeight);
+		var hght = reserveBox.cellCount * rowHeight;
+
+		//console.log("bp.x : " + bp.x + ", bp.y : " + bp.y + ", colWidth : " + colWidth + ", hght : " + hght);
+		context.fillStyle = 'rgba(00, 00, 255, 0.7)';
+		context.fillRect(bp.x, bp.y, colWidth, hght);
+	}
+	
+	function getReserveBox(reserve){
+		//console.log(reserve.startTimeHour + "," + opt.startTime + "," + reserve.startTimeMin);
+		var box_y = (reserve.startTimeHour - opt.startTime) * 4 + reserve.startTimeMin / 15;
+		//console.log("box_x : " + box_x);
+		var ri = 99;
+		var rl=opt.resources.length;
+		for(var i = 0; i < rl; i++){
+			if(opt.resources[i].rscID == reserve.resourceId){
+				ri = i;
+				break;
+			}
+		}
+		
+		// 今表示選択されているリソースに関する予約でなければnullを返す。
+		if(ri == 99) return null;
+
+		var di = 99;
+		var rd = DateUtil.getDatefromString(reserve.date);
+		//console.log(rd.toLocaleString());
+		var sd = opt.startDate;
+		var ed = opt.endDate;
+
+		//console.log("sd : " + sd.toLocaleString());
+		//console.log("ed : " + ed.toLocaleString());
+		if(DateUtil.compareDates(sd,"lessThanOrEqual",rd) && DateUtil.compareDates(rd,"lessThanOrEqual",ed)){
+			var td = sd;
+			var i = 0;
+			//console.log("rd : " + rd.toLocaleString());
+			while(DateUtil.compareDates(td,"lessThanOrEqual",ed)){
+				//console.log("td : " + td.toLocaleString() + " , i : " + i);
+				//console.log("td : " + td.toLocaleString() + ", rd : " + rd.toLocaleString());
+				if(DateUtil.compareDates(td,"equal",rd)){
+					di = i;
+					break;
+				}else{
+					i++;
+					td = DateUtil.plusDay(td,1);
+				}
+			}
+			//console.log("di : " + di);
+			//念のためチェック
+			if(di == 99) throw "unreachable";
+			
+			var box_x = di + ri;
+
+			var cellCnt = (reserve.endTimeHour - opt.startTime) * 4 + reserve.endTimeMin / 15 - box_y;
+			var ret = new ReserveBox(box_x, box_y, cellCnt, reserve);
+			//console.log("OK!");
+			return ret;
+		}else{
+			// 今表示選択されてる日付の予約でなければnullを返す。
+			//console.log("Out of date Range");
+			return null;
+		}
+	}
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	// PUBLIC METHOD
