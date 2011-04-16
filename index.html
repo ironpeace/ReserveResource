@@ -36,6 +36,7 @@
 					console.log("Event[ " + event.eventName + " ] dispatched");
 					console.log(event.reserve.resourceName + "is selected");
 
+					$('#rpHeader').html("<h2>TIME SELECTED</h2>");
 					$('#reserveId').val("未セット");
 					$('#reserverName').val("認証ユーザ名");
 					$('#reserverId').val("認証ユーザID");
@@ -50,6 +51,49 @@
 					$.blockUI({ message: $('#reservePopup'), css: { width: '640px'} }); 
 					
 				});
+
+
+				tt.addEventListner("reserveMoved", function(event){
+					console.log("Event[ " + event.eventName + " ] dispatched");
+					console.log(event.reserve.resourceName + "is moved");
+
+					$('#rpHeader').html("<h2>RESERVE MOVED</h2>");
+					$('#reserveId').val(event.reserve.reserveId);
+					$('#reserverName').val(event.reserve.reserverName);
+					$('#reserverId').val(event.reserve.reserverId);
+					$('#dept').val(event.reserve.dept);
+					$('#date').val(event.reserve.date.toLocaleString());
+					$('#startTime').val(event.reserve.startTimeHour + ":" + event.reserve.startTimeMin);
+					$('#endTime').val(event.reserve.endTimeHour + ":" + event.reserve.endTimeMin);
+					$('#resourceId').val(event.reserve.resourceId);
+					$('#resourceName').val(event.reserve.resourceName);
+					$('#purpose').val(event.reserve.purpose);
+
+					$.blockUI({ message: $('#reservePopup'), css: { width: '640px'} }); 
+					
+				});
+
+
+				tt.addEventListner("reserveResized", function(event){
+					console.log("Event[ " + event.eventName + " ] dispatched");
+					console.log(event.reserve.resourceName + "is resized");
+
+					$('#rpHeader').html("<h2>RESERVE RESIZED</h2>");
+					$('#reserveId').val(event.reserve.reserveId);
+					$('#reserverName').val(event.reserve.reserverName);
+					$('#reserverId').val(event.reserve.reserverId);
+					$('#dept').val(event.reserve.dept);
+					$('#date').val(event.reserve.date.toLocaleString());
+					$('#startTime').val(event.reserve.startTimeHour + ":" + event.reserve.startTimeMin);
+					$('#endTime').val(event.reserve.endTimeHour + ":" + event.reserve.endTimeMin);
+					$('#resourceId').val(event.reserve.resourceId);
+					$('#resourceName').val(event.reserve.resourceName);
+					$('#purpose').val(event.reserve.purpose);
+
+					$.blockUI({ message: $('#reservePopup'), css: { width: '640px'} }); 
+					
+				});
+
 				
 				$('#reserveBtn').click(function() { 
 					$.unblockUI(); 
@@ -189,7 +233,7 @@
 		
 		
 		<div id="reservePopup" style="display:none; cursor: default"> 
-			<h2>Reserve Resource</h2>
+			<div id="rpHeader"></div>
 			<form>
 				<ol>
 					<li><label>reserveId : </label><input id="reserveid" /></li>

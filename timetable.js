@@ -107,7 +107,7 @@
 								"reserverId":"PIT00123",
 								"reserverName":"山田太郎",
 								"dept":"SI開発1部",
-								"date":"2011/4/12",
+								"date":"2011/4/15",
 								"startTimeHour":"10",
 								"startTimeMin":"30",
 								"endTimeHour":"11",
@@ -120,7 +120,7 @@
 								"reserverId":"PIT00456",
 								"reserverName":"佐藤二朗",
 								"dept":"SI開発2部",
-								"date":"2011/4/13",
+								"date":"2011/4/16",
 								"startTimeHour":"12",
 								"startTimeMin":"15",
 								"endTimeHour":"15",
@@ -133,7 +133,7 @@
 								"reserverId":"PIT00789",
 								"reserverName":"鈴木三郎",
 								"dept":"SI開発3部",
-								"date":"2011/4/14",
+								"date":"2011/4/17",
 								"startTimeHour":"17",
 								"startTimeMin":"0",
 								"endTimeHour":"23",
@@ -182,6 +182,7 @@
 
 	var mouseX = 0;
 	var mouseY = 0;
+	var currentMouseIdx;
 
 	var highlightCellIdx;
 	var highlightCellPos;
@@ -192,8 +193,18 @@
 	
 	var daysCnt;
 	var rscCnt;
+	
+	var reserveBoxes = new Array();
+	var selectedReserveBox;
+	var dragBox;
+	var dragBoxDistance;
+
+	var resizingReserveId;
+	var resizingReserveBox;
 
 	var timeSelectedEventHandler = function(event){}
+	var reserveMovedEventHandler = function(event){}
+	var reserveResizedEventHandler = function(event){}
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~
 	// Class ここから
@@ -261,6 +272,7 @@
 		var rect = event.target.getBoundingClientRect();
 		mouseX = event.pageX - rect.left;
 		mouseY = event.pageY- rect.top;
+		currentMouseIdx = getCellIndex(mouseX, mouseY);
 		invalidDisplayList();
 	}
 
@@ -269,22 +281,70 @@
 		mouseX = event.pageX - rect.left;
 		mouseY = event.pageY- rect.top;
 		mousedownedCellIdx = getCellIndex(mouseX, mouseY);
-		//console.log("mousedownedCellIdx : " + mousedownedCellIdx.x + "," + mousedownedCellIdx.y);
+		
+		var rbSelected = false;
+		var rbl = reserveBoxes.length;
+		for(var i=0; i<rbl; i++){
+			var rb = reserveBoxes[i];
+			if(isMouseOver(rb)){
+				selectedReserveBox = rb;
+				if(isMouseOverResizeCorner(rb)){
+					resizingReserveId = rb.reserve.reserveId;
+				}else{
+					dragBox = new ReserveBox(rb.x, rb.y, rb.cellCount, rb.reserve);
+					dragBoxDistance = mousedownedCellIdx.y - dragBox.y;
+				}
+				rbSelected = true;
+				break;
+			}
+		}
+		if(!rbSelected) selectedReserveBox = null;
+		
 		invalidDisplayList();
-		//console.log("mouseDown");
 	}
 
 	function mouseUpListner(event){
 		if(mousedownedCellIdx){
-
 			setHighlightCellSize();
-			var reserve = getReserve();
-			
-			//dispatch timeSelected Event
-			var timeSelectedEvent = new Event("timeSelected", reserve);
-			timeSelectedEventHandler(timeSelectedEvent);
+			var newReserve = getReserve(highlightCellIdx.x, Math.min(mousedownedCellIdx.y, highlightCellIdx.y), highlightCellCnt);
+			if(!selectedReserveBox){
+				//dispatch timeSelected Event
+				var timeSelectedEvent = new Event("timeSelected", newReserve);
+				timeSelectedEventHandler(timeSelectedEvent);
+			}
 			mousedownedCellIdx = null;
 		}
+		
+		if(dragBox){
+			//dispatch reserveMovedEvent
+			var movedReserve = getReserve(dragBox.x, dragBox.y, dragBox.cellCount);
+			movedReserve.reserveId = dragBox.reserve.reserveId;
+			movedReserve.reserverId = dragBox.reserve.reserverId;
+			movedReserve.reserverName = dragBox.reserve.reserverName;
+			movedReserve.dept = dragBox.reserve.dept;
+			movedReserve.purpose = dragBox.reserve.purpose;
+			var reserveMovedEvent = new Event("reserveMoved", movedReserve);
+			reserveMovedEventHandler(reserveMovedEvent);
+		
+			dragBox = null;
+		}
+		
+		if(resizingReserveBox){
+			//dispatch reserveResizedEvent
+			var resizedReserve = getReserve(resizingReserveBox.x, resizingReserveBox.y, resizingReserveBox.cellCount - 1);
+			resizedReserve.reserveId = resizingReserveBox.reserve.reserveId;
+			resizedReserve.reserverId = resizingReserveBox.reserve.reserverId;
+			resizedReserve.reserverName = resizingReserveBox.reserve.reserverName;
+			resizedReserve.dept = resizingReserveBox.reserve.dept;
+			resizedReserve.purpose = resizingReserveBox.reserve.purpose;
+			var reserveResizedEvent = new Event("reserveResized", resizedReserve);
+			reserveResizedEventHandler(reserveResizedEvent);
+			
+			resizingReserveBox = null;
+			resizingReserveId = null;
+		}
+		
+		invalidDisplayList();
 	}
 
 	$(window).resize(function(){
@@ -314,8 +374,6 @@
 		rscCnt = opt.resources.length;
 		colCnt = daysCnt * rscCnt;
 
-		//console.log("rowCont : " + rowCnt + ", colCnt : " + colCnt);
-		
 		rowHeight = (height - resourceNameRowHeight - daysNameRowHeight) / (rowCnt - 2);
 		colWidth = (width - firstColWidth) / colCnt;
 		
@@ -330,6 +388,9 @@
 	function drawLines(x, y, width, height) {
 		context.clearRect(0, 0, canvas.width, canvas.height);
 		context.beginPath();
+		context.shadowBlur = 0;
+		context.shadowOffsetX = 0;
+		context.shadowOffsetY = 0;
 		context.strokeStyle = 'rgba(51, 51, 51, 1.0)'; //#333333
 		context.rect(x, y, width, height);
 		context.stroke();
@@ -339,7 +400,6 @@
 	}
 
 	function drawColLines(x, y, width, height) {
-		//alert("drawColLines");
 		for(var c = 0; c < colCnt; c++) {
 			context.beginPath();
 			context.font = "14px 'ＭＳ Ｐゴシック'";
@@ -426,6 +486,12 @@
 		//はみ出しチェック
 		if(isOutTimeTable()) return;
 		
+		//drag中ならハイライト描画しない
+		if(dragBox) return;
+		
+		//resize中ならハイライト描画しない
+		if(resizingReserveId) return;
+		
 		context.fillStyle = 'rgba(255, 00, 00, 0.7)';
 		context.fillRect(highlightCellPos.x, highlightCellPos.y, highlightCellSize.x, highlightCellSize.y);
 	}
@@ -442,7 +508,6 @@
 	}
 
 	function getCellPosition(indexX, indexY){
-		//console.log("indexX : " + indexX + ", indexY : " + indexY);
 		var hpx = firstColWidth + colWidth * indexX;
 		var hpy = daysNameRowHeight + resourceNameRowHeight + rowHeight * indexY;
 		var ret = new Point(hpx, hpy);
@@ -458,10 +523,9 @@
 
 		if(mousedownedCellIdx) {
 			var isOutofTimetable = false;
-			var nowCellIndex = getCellIndex(mouseX, mouseY);
 			var hlix = mousedownedCellIdx.x;
-			var hliy = Math.min(nowCellIndex.y, mousedownedCellIdx.y);
-			highlightCellCnt = Math.abs(nowCellIndex.y - mousedownedCellIdx.y);
+			var hliy = Math.min(highlightCellIdx.y, mousedownedCellIdx.y);
+			highlightCellCnt = Math.abs(highlightCellIdx.y - mousedownedCellIdx.y);
 			
 			setHighLightCellPosition(hlix, hliy);
 			highlightCellSize = new Point(colWidth, rowHeight * (highlightCellCnt + 1));
@@ -472,7 +536,6 @@
 	}
 	
 	function isOutTimeTable(){
-		//console.log("highlightCellIdx : x " + highlightCellIdx.x + " , y " + highlightCellIdx.y);
 		if(highlightCellIdx.x < 0) return true;
 		if(highlightCellIdx.y < 0) return true;
 		if(highlightCellIdx.x > colCnt - 1) return true;
@@ -480,20 +543,18 @@
 		return false;
 	}
 	
-	function getReserve(){
-		var dateIdx = Math.floor(highlightCellIdx.x / opt.resources.length);
+	function getReserve(reserveX, reserveY, cellCount){
+		var dateIdx = Math.floor(reserveX / opt.resources.length);
 		var date = DateUtil.plusDay(opt.startDate, dateIdx);
 		
-		var rscIdx = highlightCellIdx.x % opt.resources.length;
+		var rscIdx = reserveX % opt.resources.length;
 		var rscId = opt.resources[rscIdx].rscID;
 		var rscName = opt.resources[rscIdx].rscName;
 		
-		var startCellIdx_Y = Math.min(mousedownedCellIdx.y, highlightCellIdx.y);
+		var starttimeHour = opt.startTime + Math.floor(reserveY / 4);
+		var starttimeMin = reserveY % 4 * 15;
 		
-		var starttimeHour = opt.startTime + Math.floor(startCellIdx_Y / 4);
-		var starttimeMin = startCellIdx_Y % 4 * 15;
-		
-		var endY = startCellIdx_Y + highlightCellCnt + 1;
+		var endY = reserveY + cellCount + 1;
 		var endtimeHour = opt.startTime + Math.floor(endY / 4);
 		var endtimeMin = endY % 4 * 15;
 
@@ -513,28 +574,91 @@
 	}
 
 	function drawReserveBoxes(){
+		reserveBoxes = new Array();
 		var rl = opt.reserves.length;
 		for(var i=0; i<rl; i++){
 			var rb = getReserveBox(opt.reserves[i]);
-			if(rb) drawReserveBox(rb);
+			if(rb){
+				reserveBoxes.push(rb);
+				
+				if(rb.reserve.reserveId == resizingReserveId){
+					console.log("rb.reserve.id : " + rb.reserve.reserveId);
+					console.log("resizingReserveId : " + resizingReserveId);
+					if(selectedReserveBox.y <= currentMouseIdx.y){
+						rb.cellCount = currentMouseIdx.y - selectedReserveBox.y + 1;
+					}else{
+						rb.cellCount = selectedReserveBox.y - currentMouseIdx.y;
+						rb.y = currentMouseIdx.y;
+					}
+					resizingReserveBox = rb;
+				}
+				
+				drawReserveBox(rb);
+			}
+		}
+		
+		if(dragBox){
+			dragBox.y = highlightCellIdx.y - dragBoxDistance;
+			dragBox.x = highlightCellIdx.x;
+			drawReserveBox(dragBox);
+			return;
 		}
 	}
 	
 	function drawReserveBox(reserveBox){
-		//console.log("reserveBox :: x : " + reserveBox.x + ", y : " + reserveBox.y);
 		var bp = getCellPosition(reserveBox.x, reserveBox.y);
-		console.log(reserveBox.cellCount + "," + rowHeight);
 		var hght = reserveBox.cellCount * rowHeight;
 
-		//console.log("bp.x : " + bp.x + ", bp.y : " + bp.y + ", colWidth : " + colWidth + ", hght : " + hght);
-		context.fillStyle = 'rgba(00, 00, 255, 0.7)';
+		if(isMouseOver(reserveBox)){
+			context.fillStyle = 'rgba(00, 00, 255, 1.0)';
+		}else{
+			context.fillStyle = 'rgba(00, 00, 255, 0.7)';
+		}
+
+		context.shadowBlur = 10;
+		context.shadowColor = "#000000";
+		context.shadowOffsetX = 3;
+		context.shadowOffsetY = 3;
 		context.fillRect(bp.x, bp.y, colWidth, hght);
+
+		context.shadowBlur = 0;
+		context.shadowOffsetX = 0;
+		context.shadowOffsetY = 0;
+		context.fillStyle = 'rgba(255, 255, 255, 1.0)';
+		context.textAlign = "start";
+		context.font = "15px 'ＭＳ Ｐゴシック'";
+		context.fillText(reserveBox.reserve.reserverName, bp.x + 5, bp.y + 15, colWidth);
 	}
 	
 	function getReserveBox(reserve){
-		//console.log(reserve.startTimeHour + "," + opt.startTime + "," + reserve.startTimeMin);
+	
+		// y 座標の決定 ~~~~~~~~~~~~~~~~~~~~~~~~　ここから
 		var box_y = (reserve.startTimeHour - opt.startTime) * 4 + reserve.startTimeMin / 15;
-		//console.log("box_x : " + box_x);
+		
+		// タイムテーブルを上にはみ出しているなら、y をゼロにする。
+		box_y = Math.max(box_y, 0);
+		
+		//タイムテーブルの縦のセル数の数
+		var allCellCnt = (opt.endTime - opt.startTime) * 4;
+		
+		// タイムテーブルの下に頭からはみ出しているなら、null をリターンする。
+		if(box_y >= allCellCnt){
+			return null;
+		}
+
+		var cellCnt = (reserve.endTimeHour - opt.startTime) * 4 + reserve.endTimeMin / 15 - box_y;
+		
+		// ボックスが上にいくつはみだしているか
+		var ov = box_y + cellCnt - allCellCnt;
+		
+		//上にはみ出しているなら、その分削る。
+		if(ov > 0){
+			cellCnt = cellCnt - ov;
+		}
+
+		// y 座標の決定 ~~~~~~~~~~~~~~~~~~~~~~~~　ここまで
+		// x 座標の決定 ~~~~~~~~~~~~~~~~~~~~~~~~　ここから
+
 		var ri = 99;
 		var rl=opt.resources.length;
 		for(var i = 0; i < rl; i++){
@@ -549,19 +673,14 @@
 
 		var di = 99;
 		var rd = DateUtil.getDatefromString(reserve.date);
-		//console.log(rd.toLocaleString());
 		var sd = opt.startDate;
 		var ed = opt.endDate;
 
-		//console.log("sd : " + sd.toLocaleString());
-		//console.log("ed : " + ed.toLocaleString());
+		//まずは選択日付内に含まれた予約かどうかをチェック
 		if(DateUtil.compareDates(sd,"lessThanOrEqual",rd) && DateUtil.compareDates(rd,"lessThanOrEqual",ed)){
 			var td = sd;
 			var i = 0;
-			//console.log("rd : " + rd.toLocaleString());
 			while(DateUtil.compareDates(td,"lessThanOrEqual",ed)){
-				//console.log("td : " + td.toLocaleString() + " , i : " + i);
-				//console.log("td : " + td.toLocaleString() + ", rd : " + rd.toLocaleString());
 				if(DateUtil.compareDates(td,"equal",rd)){
 					di = i;
 					break;
@@ -570,20 +689,48 @@
 					td = DateUtil.plusDay(td,1);
 				}
 			}
-			//console.log("di : " + di);
 			//念のためチェック
 			if(di == 99) throw "unreachable";
 			
 			var box_x = di + ri;
-
-			var cellCnt = (reserve.endTimeHour - opt.startTime) * 4 + reserve.endTimeMin / 15 - box_y;
+			
+			// x 座標の決定 ~~~~~~~~~~~~~~~~~~~~~~~~　ここまで
+			
 			var ret = new ReserveBox(box_x, box_y, cellCnt, reserve);
-			//console.log("OK!");
 			return ret;
 		}else{
 			// 今表示選択されてる日付の予約でなければnullを返す。
-			//console.log("Out of date Range");
 			return null;
+		}
+	}
+	
+	function isMouseOver(reserveBox){
+		if(reserveBox.x == highlightCellIdx.x){
+			if(reserveBox.y <= highlightCellIdx.y && highlightCellIdx.y <= reserveBox.y + reserveBox.cellCount){
+				return true;
+			}else{
+				return false;
+			}
+		}else{
+			return false;
+		}
+	}
+	
+	function isMouseOverResizeCorner(reserveBox){
+		//そもそもマウスダウンしていない状態ならばfalse
+		if(!mousedownedCellIdx) return false;
+
+		var cornerSize = rowHeight * 2;
+
+		var cp = getCellPosition(reserveBox.x, reserveBox.y);
+		var rbRightSide = cp.x + colWidth;
+		var rbBottom = cp.y + rowHeight * reserveBox.cellCount;
+		
+		if(rbRightSide - cornerSize < mouseX && mouseX < rbRightSide && 
+			rbBottom - cornerSize < mouseY && mouseY < rbBottom){
+			return true;
+		}else{
+			return false;
 		}
 	}
 
@@ -612,6 +759,12 @@
 		switch(eventname){
 			case "timeSelected":
 				timeSelectedEventHandler = eventhandler;
+				break;
+			case "reserveMoved":
+				reserveMovedEventHandler = eventhandler;
+				break;
+			case "reserveResized":
+				reserveResizedEventHandler = eventhandler;
 				break;
 			default:
 				throw "invalid eventname : " + eventname;
